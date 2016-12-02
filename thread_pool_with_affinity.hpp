@@ -79,36 +79,56 @@ class thread_pool_with_affinity
       return submit(anywhere(), std::forward<Function>(f));
     }
 
-    // XXX the executor should deal with this rather than reimplementing it in every thread pool type
-    template<class Function, class... Args>
-    std::future<typename std::result_of<Function(Args...)>::type>
-      async(const affinity& where, Function&& f, Args&&... args)
+    class executor_type
     {
-      // bind f & args together
-      auto g = std::bind(std::forward<Function>(f), std::forward<Args>(args)...);
+      public:
+        inline executor_type(const executor_type&) = default;
 
-      using result_type = typename std::result_of<Function(Args...)>::type;
+        template<class Function>
+        void execute(Function&& f) const
+        {
+          thread_pool_->submit(where_, std::forward<Function>(f));
+        }
 
-      // create a packaged task
-      std::packaged_task<result_type()> task(std::move(g));
+        template<class Function>
+        std::future<typename std::result_of<Function()>::type>
+          async_execute(Function&& f) const
+        {
+          using result_type = typename std::result_of<Function()>::type;
 
-      // get the packaged task's future so we can return it at the end
-      auto result_future = task.get_future();
+          // create a packaged task
+          std::packaged_task<result_type()> task(std::move(f));
 
-      // move the packaged task into the thread pool
-      submit(where, std::move(task));
+          // get the packaged task's future so we can return it at the end
+          auto result_future = task.get_future();
 
-      return std::move(result_future);
+          // move the packaged task into the thread pool
+          thread_pool_->submit(where_, std::move(task));
+
+          return std::move(result_future);
+        }
+    
+      private:
+        friend class thread_pool_with_affinity;
+
+        inline executor_type(thread_pool_with_affinity& pool, const affinity& where)
+          : thread_pool_(&pool),
+            where_(where)
+        {}
+
+        thread_pool_with_affinity* thread_pool_;
+        affinity where_;
+    };
+
+    inline executor_type executor(const affinity& where)
+    {
+      return executor_type(*this, where);
     }
 
-    // XXX the executor should deal with this rather than reimplementing it in every thread pool type
-    template<class Function, class... Args>
-    std::future<typename std::result_of<Function(Args...)>::type>
-      async(Function&& f, Args&&... args)
+    inline executor_type executor()
     {
-      return async(anywhere(), std::forward<Function>(f), std::forward<Args>(args)...);
+      return executor(anywhere());
     }
-
 
   private:
     thread_pool& select_pool(const affinity& choices)
