@@ -19,7 +19,7 @@ namespace this_core
 {
 
 
-static core_id get_id()
+inline core_id get_id()
 {
   return sched_getcpu();
 }
@@ -31,7 +31,7 @@ static core_id get_id()
 class thread_pool_with_affinity
 {
   public:
-    thread_pool_with_affinity()
+    inline thread_pool_with_affinity()
       : rng_(std::chrono::system_clock::now().time_since_epoch().count())
     {
       // for each cpu, create a thread pool with a single thread and pin it to its core
@@ -61,7 +61,7 @@ class thread_pool_with_affinity
       pool.submit(std::forward<Function>(f));
     }
 
-    affinity anywhere() const
+    inline affinity anywhere() const
     {
       affinity result;
 
@@ -82,7 +82,7 @@ class thread_pool_with_affinity
     class executor_type
     {
       public:
-        inline executor_type(const executor_type&) = default;
+        executor_type(const executor_type&) = default;
 
         template<class Function>
         void execute(Function&& f) const
@@ -131,7 +131,7 @@ class thread_pool_with_affinity
     }
 
   private:
-    thread_pool& select_pool(const affinity& choices)
+    inline thread_pool& select_pool(const affinity& choices)
     {
       // choose a thread pool at random
       unsigned int selection = rng_() % choices.size();
