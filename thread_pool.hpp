@@ -18,16 +18,16 @@ class thread_pool
     {
       using std::thread::thread;
 
-      joining_thread(joining_thread&&) = default;
+      inline joining_thread(joining_thread&&) = default;
 
-      ~joining_thread()
+      inline ~joining_thread()
       {
         if(joinable()) join();
       }
     };
 
   public:
-    explicit thread_pool(size_t num_threads = std::max(1u, std::thread::hardware_concurrency()))
+    inline explicit thread_pool(size_t num_threads = std::max(1u, std::thread::hardware_concurrency()))
     {
       for(size_t i = 0; i < num_threads; ++i)
       {
@@ -37,8 +37,24 @@ class thread_pool
         });
       }
     }
-    
-    ~thread_pool()
+
+    inline thread_pool(thread_pool&& other) 
+      : tasks_(std::move(other.tasks_))
+    {
+      size_t num_threads = other.threads_.size();
+      other.threads_.clear();
+
+      // we need to start new threads
+      for(size_t i = 0; i < num_threads; ++i)
+      {
+        threads_.emplace_back([this]
+        {
+          work();
+        });
+      }
+    }
+
+    inline ~thread_pool()
     {
       tasks_.close();
       threads_.clear();
@@ -112,7 +128,7 @@ class thread_pool
 class thread_pool_executor
 {
   public:
-    thread_pool_executor(thread_pool& pool)
+    inline thread_pool_executor(thread_pool& pool)
       : thread_pool_(pool)
     {}
 

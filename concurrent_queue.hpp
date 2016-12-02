@@ -58,6 +58,14 @@ class concurrent_queue
     {
     }
 
+    concurrent_queue(concurrent_queue&& other)
+      : concurrent_queue()
+    {
+      other.close();
+      items_ = std::move(other.items_);
+    }
+        
+
     ~concurrent_queue()
     {
       close();
@@ -115,10 +123,9 @@ class concurrent_queue
 
       while(true)
       {
-        bool needs_notify = true;
-
         {
           std::unique_lock<std::mutex> lock(mutex_);
+
           wake_up_.wait(lock, [this]
           {
             return is_closed_ || !items_.empty();
@@ -130,23 +137,25 @@ class concurrent_queue
             break;
           }
 
-          // if there are no items go back to sleep
-          if(items_.empty()) continue;
+          // if there are items, pop the next one
+          if(!items_.empty())
+          {
+            // get the next item
+            item = std::move(items_.front());
+            items_.pop();
 
-          // get the next item
-          item = std::move(items_.front());
-          items_.pop();
+            bool needs_notify = !items_.empty();
 
-          needs_notify = !items_.empty();
+            lock.unlock();
+
+            if(needs_notify)
+            {
+              wake_up_.notify_one();
+            }
+
+            return true;
+          }
         }
-
-        // wake someone up
-        if(needs_notify)
-        {
-          wake_up_.notify_one();
-        }
-
-        return true;
       }
 
       return false;
