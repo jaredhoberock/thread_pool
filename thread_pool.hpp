@@ -108,6 +108,49 @@ class thread_pool
       return std::move(result_future);
     }
 
+    class executor_type
+    {
+      public:
+        inline executor_type(const executor_type&) = default;
+
+        template<class Function>
+        void execute(Function&& f) const
+        {
+          thread_pool_->submit(std::forward<Function>(f));
+        }
+
+        template<class Function>
+        std::future<typename std::result_of<Function()>::type>
+          async_execute(Function&& f) const
+        {
+          using result_type = typename std::result_of<Function()>::type;
+
+          // create a packaged task
+          std::packaged_task<result_type()> task(std::move(f));
+
+          // get the packaged task's future so we can return it at the end
+          auto result_future = task.get_future();
+
+          // move the packaged task into the thread pool
+          thread_pool_->submit(std::move(task));
+
+          return std::move(result_future);
+        }
+    
+      private:
+        friend class thread_pool;
+
+        inline executor_type(thread_pool& pool)
+          : thread_pool_(&pool)
+        {}
+
+        thread_pool* thread_pool_;
+    };
+
+    inline executor_type executor()
+    {
+      return executor_type(*this);
+    }
 
   private:
     inline void work()
@@ -124,21 +167,4 @@ class thread_pool
     std::vector<joining_thread> threads_;
 };
 
-
-class thread_pool_executor
-{
-  public:
-    inline thread_pool_executor(thread_pool& pool)
-      : thread_pool_(pool)
-    {}
-
-    template<class Function>
-    void execute(Function&& f)
-    {
-      thread_pool_.submit(std::forward<Function>(f));
-    }
-
-  private:
-    thread_pool& thread_pool_;
-};
 

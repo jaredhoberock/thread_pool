@@ -8,7 +8,7 @@ int main()
   {
     thread_pool pool;
 
-    auto f = pool.async([]
+    auto f = pool.executor().async_execute([]
     {
       std::cout << "Hello, world!" << std::endl;
     });
